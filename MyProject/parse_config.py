@@ -8,9 +8,8 @@ from logger import setup_logging
 from utils import read_json, write_json
 
 
-run_id=datetime.now().strftime(r'%m%d_%H%M%S')
 class ConfigParser:
-    def __init__(self, config, resume=None, modification=None,):
+    def __init__(self, config, resume=None, modification=None, run_id=None):
         """
         class to parse configuration json file. Handles hyperparameters for training, initializations of modules, checkpoint saving
         and logging module.
@@ -27,15 +26,10 @@ class ConfigParser:
         save_dir = Path(self.config['trainer']['save_dir'])
 
         exper_name = self.config['name']
-        global run_id
-        if run_id is None: # use timestamp as default run-id\
+        if run_id is None: # use timestamp as default run-id
             run_id = datetime.now().strftime(r'%m%d_%H%M%S')
         self._save_dir = save_dir / 'log' / exper_name / run_id
         # self._log_dir = save_dir / 'log' / exper_name / run_id
-
-        #######
-        # self._test_dir = save_dir / "submission" / exper_name / run_id
-
 
         # make directory for saving checkpoints and log.
         exist_ok = run_id == ''
@@ -44,6 +38,7 @@ class ConfigParser:
 
         # save updated config file to the checkpoint dir
         write_json(self.config, self.save_dir / 'config.json')
+
         # configure logging module
         setup_logging(self.save_dir)
         self.log_levels = {
@@ -59,13 +54,11 @@ class ConfigParser:
         """
         for opt in options:
             args.add_argument(*opt.flags, default=None, type=opt.type)
-            
         if not isinstance(args, tuple):
             args = args.parse_args()
 
         if args.device is not None:
             os.environ["CUDA_VISIBLE_DEVICES"] = args.device
-
         if args.resume is not None:
             resume = Path(args.resume)
             cfg_fname = resume.parent / 'config.json'
@@ -73,7 +66,6 @@ class ConfigParser:
             msg_no_cfg = "Configuration file need to be specified. Add '-c config.json', for example."
             assert args.config is not None, msg_no_cfg
             resume = None
-            # args.config = "config.json"
             cfg_fname = Path(args.config)
         
         config = read_json(cfg_fname)
