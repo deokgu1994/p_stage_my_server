@@ -13,8 +13,14 @@ def ensure_dir(dirname):
 
 def read_json(fname):
     fname = Path(fname)
-    with fname.open('rt') as handle:
-        return json.load(handle, object_hook=OrderedDict)
+    with fname.open("rt") as handle: # possible comment in json file 
+        contents = handle.read()
+        while "/*" in contents:
+            preComment, postComment = contents.split("/*", 1)
+            contents = preComment + postComment.split("*/", 1)[1]
+        return json.loads(contents.replace("'", '"'), object_hook=OrderedDict)
+    # with fname.open('rt') as handle:
+    #     return json.load(handle, object_hook=OrderedDict)
 
 def write_json(content, fname):
     fname = Path(fname)

@@ -6,38 +6,47 @@ import collections
 import random
 import torch
 import numpy as np
+
+# make by users
 import data_loader.data_loaders as module_data
+import data_loader.data_set as module_data_set
 import model.loss as module_loss
 import model.metric as module_metric
-import model.model as module_arch
+import model.model as module_net
+import transform.transform as module_transform
+import trainer.trainer as Trainer
 from parse_config import ConfigParser
-from trainer import Trainer
 from utils import prepare_device
 
 
+
 # fix random seeds for reproducibility
-# SEED = 123
-# torch.manual_seed(SEED)
-# torch.cuda.manual_seed(SEED)
-# torch.cuda.manual_seed_all(SEED)  # if use multi-GPU
-# torch.backends.cudnn.deterministic = True
-# torch.backends.cudnn.benchmark = False
-# np.random.seed(SEED)
-# random.seed(SEED)]
+SEED = 2021
+torch.manual_seed(SEED)
+torch.cuda.manual_seed(SEED)
+torch.cuda.manual_seed_all(SEED)  # if use multi-GPU
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
+np.random.seed(SEED)
+random.seed(SEED)
+
 
 def main(config):
-    logger = config.get_logger('train')
+    if config["save"] : logger = config.get_logger('train')
+
+    device, device_ids = prepare_device(config['n_gpu'])
+    print(f"device {device}, device_ids {device_ids}")
 
     # setup data_loader instances
-    data_loader = config.init_obj('data_loader', module_data)
-    valid_data_loader = data_loader.split_validation()
+    data_set = config.init_obj('data_set', module_data_set)
 
-    # build model architecture, then print to console
-    model = config.init_obj('arch', module_arch)
-    logger.info(model)
+    # load model 
+    model = config.init_obj('Net', module_net)
+    if config["save"] : logger.info(model)
 
+    # set trasform
+    transform = config.init_obj("transform", module_transform)
     # prepare for (multi-device) GPU training
-    device, device_ids = prepare_device(config['n_gpu'])
     model = model.to(device)
     if len(device_ids) > 1:
         model = torch.nn.DataParallel(model, device_ids=device_ids)
@@ -50,13 +59,22 @@ def main(config):
     trainable_params = filter(lambda p: p.requires_grad, model.parameters())
     optimizer = config.init_obj('optimizer', torch.optim, trainable_params)
     lr_scheduler = config.init_obj('lr_scheduler', torch.optim.lr_scheduler, optimizer)
+    
+    if config["type"] == "classfication":
+        trainer = Trainer.Trainer(model, criterion, metrics, optimizer,
+                        config=config,
+                        device=device,
+                        data_loader=data_set,
+                        valid_data_loader=valid_data_loader,
+                        lr_scheduler=lr_scheduler)
 
-    trainer = Trainer(model, criterion, metrics, optimizer,
-                      config=config,
-                      device=device,
-                      data_loader=data_loader,
-                      valid_data_loader=valid_data_loader,
-                      lr_scheduler=lr_scheduler)
+    elif config["type"] == "detection":
+        trainer = Trainer.Trainer_dett(model, criterion, metrics, optimizer,
+                        config=config,
+                        device=device,
+                        transform = transform,
+                        data_loader=data_set,
+                        lr_scheduler=lr_scheduler)
 
     trainer.train()
 
