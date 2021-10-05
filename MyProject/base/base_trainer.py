@@ -10,7 +10,7 @@ class BaseTrainer:
     """
     def __init__(self, model, criterion, metric_ftns, optimizer, config):
         self.config = config
-        self.logger = config.get_logger('trainer', config['trainer']['verbosity'])
+        if self.config["save"] : self.logger = config.get_logger('trainer', config['trainer']['verbosity'])
 
         self.model = model
         self.criterion = criterion
@@ -40,10 +40,12 @@ class BaseTrainer:
         self.checkpoint_dir = config.save_dir
 
         # setup visualization writer instance                
-        self.writer = TensorboardWriter(config.log_dir, self.logger, cfg_trainer['tensorboard'])
+        self.writer = TensorboardWriter(config.log_dir, None, cfg_trainer['tensorboard'])
 
         if config.resume is not None:
             self._resume_checkpoint(config.resume)
+
+        self.is_save_pth_filename = None
 
     @abstractmethod
     def _train_epoch(self, epoch):
@@ -68,7 +70,7 @@ class BaseTrainer:
 
             # print logged informations to the screen
             for key, value in log.items():
-                self.logger.info('    {:15s}: {}'.format(str(key), value))
+                if self.config["save"] : self.logger.info('    {:15s}: {}'.format(str(key), value))
 
             # evaluate model performance according to configured metric, save best checkpoint as model_best
             best = False
@@ -78,7 +80,7 @@ class BaseTrainer:
                     improved = (self.mnt_mode == 'min' and log[self.mnt_metric] <= self.mnt_best) or \
                                (self.mnt_mode == 'max' and log[self.mnt_metric] >= self.mnt_best)
                 except KeyError:
-                    self.logger.warning("Warning: Metric '{}' is not found. "
+                    if self.config["save"] : self.logger.warning("Warning: Metric '{}' is not found. "
                                         "Model performance monitoring is disabled.".format(self.mnt_metric))
                     self.mnt_mode = 'off'
                     improved = False
@@ -91,12 +93,16 @@ class BaseTrainer:
                     not_improved_count += 1
 
                 if not_improved_count > self.early_stop:
-                    self.logger.info("Validation performance didn\'t improve for {} epochs. "
+                    if self.config["save"] :self.logger.info("Validation performance didn\'t improve for {} epochs. "
                                      "Training stops.".format(self.early_stop))
                     break
 
-            if epoch % self.save_period == 0:
+            if epoch % self.save_period == 0 or best:
                 self._save_checkpoint(epoch, save_best=best)
+                
+            if self.do_validation and self.:
+                val_log = self._valid_epoch(epoch)
+                log.update(**{'val_'+k : v for k, v in val_log.items()})
 
     def _save_checkpoint(self, epoch, save_best=False):
         """
@@ -106,22 +112,16 @@ class BaseTrainer:
         :param log: logging information of the epoch
         :param save_best: if True, rename the saved checkpoint to 'model_best.pth'
         """
-        arch = type(self.model).__name__
-        state = {
-            'arch': arch,
-            'epoch': epoch,
-            'state_dict': self.model.state_dict(),
-            'optimizer': self.optimizer.state_dict(),
-            'monitor_best': self.mnt_best,
-            'config': self.config
-        }
-        filename = str(self.checkpoint_dir / 'checkpoint-epoch{}.pth'.format(epoch))
-        torch.save(state, filename)
-        self.logger.info("Saving checkpoint: {} ...".format(filename))
-        if save_best:
-            best_path = str(self.checkpoint_dir / 'model_best.pth')
-            torch.save(state, best_path)
-            self.logger.info("Saving current best: model_best.pth ...")
+        if self.config["save"] :
+            if save_best:
+                filename = str(self.checkpoint_dir / 'model_best-epoch{}.pth'.format(epoch))
+                torch.save(self.model.state_dict(), best_path)
+                self.logger.info("Saving current best: model_best.pth ...")
+            else:
+                filename = str(self.checkpoint_dir / 'checkpoint-epoch{}.pth'.format(epoch))
+                torch.save(self.model.state_dict(), filename)
+                self.logger.info("Saving checkpoint: {} ...".format(filename))
+            self.is_save_pth_filename = filename
 
     def _resume_checkpoint(self, resume_path):
         """

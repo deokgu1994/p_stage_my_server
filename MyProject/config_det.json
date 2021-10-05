@@ -2,8 +2,8 @@
 {
     "name": "Object_detection_recycle",
     "type": "detection", /* classefication, detection*/
-    "n_gpu": 4,
-    "save": false,
+    "n_gpu": 1,
+    "save": true,
     "data_set":{
         "type": "CustomCOCODataset",
         "args": {
@@ -37,7 +37,7 @@
     },
     "loss": "nll_loss",
     "metrics": [
-        "accuracy", "top_k_acc"
+        /*"accuracy", "top_k_acc"*/
     ],
     "lr_scheduler": {
         "type": "MultiStepLR",
