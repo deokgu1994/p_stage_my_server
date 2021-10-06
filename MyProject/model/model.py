@@ -77,7 +77,7 @@ def custom_efficientdet(det_name, num_classes, image_size, checkpoint_path=None)
     from effdet import get_efficientdet_config, EfficientDet, DetBenchTrain
     from effdet.efficientdet import HeadNet
 
-    config = get_efficientdet_config('tf_efficientdet_d1')
+    config = get_efficientdet_config(det_name)
     config.num_classes = num_classes
     config.image_size = (512,512)
     

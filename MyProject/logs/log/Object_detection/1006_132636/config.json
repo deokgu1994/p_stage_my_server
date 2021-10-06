@@ -1,14 +1,13 @@
-/* Object_detection  */
 {
     "name": "Object_detection",
-    "type": "detection", /* classefication, detection*/
+    "type": "detection",
     "n_gpu": 1,
     "save": true,
     "batch_size": 8,
     "num_workers": 4,
     "score_threshold": 0.5,
     "fold_split": 5,
-    "data_set":{
+    "data_set": {
         "type": "CustomCOCODataset",
         "args": {
             "annotation": "/opt/ml/detection/dataset/train.json",
@@ -20,33 +19,54 @@
         "args": {
             "det_name": "tf_efficientdet_d7",
             "num_classes": 10,
-            "image_size": [512, 512]
+            "image_size": [
+                512,
+                512
+            ]
         }
     },
-    "transform":{
+    "transform": {
         "type": "CustomTransForm",
         "args": {
-            "mean": [0.548, 0.504, 0.479],
-            "std": [0.237, 0.247, 0.246],
-            "resize": [512, 512]
+            "mean": [
+                0.548,
+                0.504,
+                0.479
+            ],
+            "std": [
+                0.237,
+                0.247,
+                0.246
+            ],
+            "resize": [
+                512,
+                512
+            ]
         }
     },
     "optimizer": {
         "type": "Adam",
-        "args":{
+        "args": {
             "lr": 0.001,
             "weight_decay": 0,
             "amsgrad": true
         }
     },
     "loss": "nll_loss",
-    "metrics": [
-        /*"accuracy", "top_k_acc"*/
-    ],
+    "metrics": [],
     "lr_scheduler": {
         "type": "MultiStepLR",
         "args": {
-            "milestones": [10, 15, 20, 25, 30, 35, 40, 45],
+            "milestones": [
+                10,
+                15,
+                20,
+                25,
+                30,
+                35,
+                40,
+                45
+            ],
             "gamma": 0.05
         }
     },

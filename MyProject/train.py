@@ -42,7 +42,7 @@ def main(config):
 
     # load model 
     model = config.init_obj('Net', module_net)
-    if config["save"] : logger.info(model)
+    # if config["save"] : logger.info(model)
 
     # set trasform
     transform = config.init_obj("transform", module_transform)
@@ -69,7 +69,7 @@ def main(config):
                         lr_scheduler=lr_scheduler)
 
     elif config["type"] == "detection":
-        trainer = Trainer.Trainer_dett(model, criterion, metrics, optimizer,
+        trainer = Trainer.Trainer_det(model, criterion, metrics, optimizer,
                         config=config,
                         device=device,
                         transform = transform,

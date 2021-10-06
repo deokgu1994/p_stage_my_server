@@ -1,14 +1,10 @@
-import copy
 import numpy as np
 import torch
 from torchvision.utils import make_grid
-from base import BaseTrainer
+from base import BaseTrainer, BaseTrainer_det
 from utils import inf_loop, MetricTracker
 from tqdm import tqdm
-from sklearn.model_selection import KFold, StratifiedKFold
 from map_boxes import mean_average_precision_for_boxes
-
-
 ###
 from effdet import get_efficientdet_config, EfficientDet, DetBenchPredict
 from effdet.efficientdet import HeadNet
@@ -61,7 +57,7 @@ class Trainer(BaseTrainer):
             for met in self.metric_ftns:
                 self.train_metrics.update(met.__name__, met(output, target))
 
-            if batch_idx % self.log_step == 0:
+            if batch_idx % self.log_step == 0 :
                 self.logger.debug('Train Epoch: {} {} Loss: {:.6f}'.format(
                     epoch,
                     self._progress(batch_idx),
@@ -133,13 +129,13 @@ class Averager:
         self.current_total = 0.0
         self.iterations = 0.0
 
-class Trainer_dett(BaseTrainer):
+class Trainer_det(BaseTrainer_det):
     """
     Trainer class
     """
     def __init__(self, model, criterion, metric_ftns, optimizer, config, device, transform,
-                 data_loader, valid_data_loader=None, lr_scheduler=None, len_epoch=None):
-        super().__init__(model, criterion, metric_ftns, optimizer, config)
+                 data_loader, valid_data_loader=None, lr_scheduler=None, len_epoch=None,):
+        super().__init__(model, criterion, metric_ftns, optimizer, config, data_loader, transform)
         self.config = config
         self.device = device
         self.data_loader = data_loader
@@ -153,100 +149,74 @@ class Trainer_dett(BaseTrainer):
         self.valid_data_loader = valid_data_loader
         self.do_validation = self.valid_data_loader is not None
         self.lr_scheduler = lr_scheduler
-        # self.log_step = int(np.sqrt(data_loader.batch_size))
+        self.log_step = int((len(data_loader) / self.config["batch_size"]) // 8)
 
         self.train_metrics = MetricTracker('loss', *[m.__name__ for m in self.metric_ftns], writer=self.writer)
         self.valid_metrics = MetricTracker('loss', *[m.__name__ for m in self.metric_ftns], writer=self.writer)
 
         self.loss_hist = Averager()
+        self.score_threshold = self.config["score_threshold"]
 
-    def _train_epoch(self, epoch):
+    def _train_epoch(self, epoch, kfold, data_loader):
         """
         Training logic for an epoch
 
         :param epoch: Integer, current training epoch.
         :return: A log that contains average loss and metric in this epoch.
         """
+
+        self.model.to(self.device)
+        self.model.train()
         self.loss_hist.reset()
-        
-        for images, targets, *_ in tqdm(self.data_loader):
-            # print(images.shape
+        self.len_data_set = len(data_loader)
+        for batch_idx, (images, targets, *_) in tqdm(enumerate(data_loader)):
             images = torch.stack(images) # bs, ch, w, h - 16, 3, 512, 512
             images = images.to(self.device).float()
             boxes = [target['boxes'].to(self.device).float() for target in targets]
             labels = [target['labels'].to(self.device).float() for target in targets]
             target = {"bbox": boxes, "cls": labels}
 
-            # calculate loss
+            self.optimizer.zero_grad()
             loss, cls_loss, box_loss = self.model(images, target).values()
             loss_value = loss.detach().item()
-            
+
             self.loss_hist.send(loss_value)
-            
-            # backward
-            self.optimizer.zero_grad()
-            loss.backward()
-            # grad clip
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), 35)
-            
-            self.optimizer.step()
-        print(f"!!!!!!! Epoch #{epoch+1}, loss: {self.loss_hist.value}")
-        return {"loss":self.loss_hist.value}
-
-
-        """        self.model.train()
-        self.train_metrics.reset()
-        for batch_idx, data, target, *_ in tqdm(enumerate(self.data_loader)):
-            images = torch.stack(images) # bs, ch, w, h - 16, 3, 512, 512
-            images = images.to(self.device).float()
-            boxes = [target['boxes'].to(self.device).float() for target in targets]
-            labels = [target['labels'].to(self.device).float() for target in targets]
-            target = {"bbox": boxes, "cls": labels}
-
-            self.optimizer.zero_grad()
-            loss, cls_loss, box_loss = self.model(images, target).values()
-            loss_value = loss.detach().item()
 
             loss.backward()
             self.optimizer.step()
 
-            self.writer.set_step((epoch - 1) * self.len_epoch + batch_idx)
-            self.train_metrics.update('loss', loss_value)
-
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), 5) # 
             if batch_idx % self.log_step == 0:
-                self.logger.debug('Train Epoch: {} {} Loss: {:.6f}'.format(
+                if self.config["save"] : self.logger.debug('Train Epoch, kfold: {} {} {} Loss: {:.6f}'.format(
                     epoch,
-                    self._progress(batch_idx),
-                    loss.item()))
-                self.writer.add_image('input', make_grid(data.cpu(), nrow=8, normalize=True))
+                    kfold, 
+                    self._progress((batch_idx+1)*self.config["batch_size"]),
+                    self.loss_hist.value))
 
             if batch_idx == self.len_epoch:
                 break
-        log = self.train_metrics.result()
-
-        if self.do_validation:
-            val_log = self._valid_epoch(epoch)
-            log.update(**{'val_'+k : v for k, v in val_log.items()})"""
+        log = {"loss" : self.loss_hist.value}
+        return log
 
         # if self.lr_scheduler is not None:
         #     self.lr_scheduler.step()
         # return log
 
-    def _valid_epoch(self, epoch):
+    def _valid_epoch(self, valid_data_loader):
         """
         Validate after training an epoch
 
         :param epoch: Integer, current training epoch.
         :return: A log that contains information about validation
         """
-        config = get_efficientdet_config('tf_efficientdet_d1')
+        config = get_efficientdet_config(self.config["Net"]["args"]["det_name"])
         config.num_classes = 10
         config.image_size = (512,512)
         
         config.soft_nms = False
         config.max_det_per_image = 40
         
-        checkpoint = torch.load(f"epoch_{epoch+1}.pth", map_location='cpu')
+        checkpoint = torch.load(self.is_save_pth_filename, map_location='cpu')
         net = EfficientDet(config, pretrained_backbone=False)
 
         net.class_net = HeadNet(config, num_outputs=config.num_classes)
@@ -259,7 +229,7 @@ class Trainer_dett(BaseTrainer):
         with torch.no_grad():
             new_pred = []
             gt = []
-            for images, targets, _, filename in tqdm(self.valid_data_loader):
+            for images, targets, _, filename in tqdm(valid_data_loader):
                 # gpu 계산을 위해 image.to(device)       
                 images = torch.stack(images) # bs, ch, w, h 
                 images = images.to(self.device).float()
@@ -277,132 +247,34 @@ class Trainer_dett(BaseTrainer):
                     bbox = target["boxes"][i]
                     gt.append([filename[i], int(target["labels"][i]), bbox[1].item(), bbox[3].item(), bbox[0].item(), bbox[2].item()])
             mean_ap, _ = mean_average_precision_for_boxes(gt, new_pred, iou_threshold=0.5)
-            print(f"!!!!!!! mAP : {mean_ap}")
+        return {"mAP" : mean_ap}
 
-
-class Trainer_det(object):
-    """
-    Trainer class
-    """
-    
-    def __init__(self, model, criterion, metric_ftns, optimizer, config, device, transform,
-                 data_loader, valid_data_loader=None, lr_scheduler=None, len_epoch=None):
-        # super().__init__(model, criterion, metric_ftns, optimizer, config)
-        self.config = config
-        self.device = device
-        self.len_epoch = len_epoch
-        self.lr_scheduler = lr_scheduler
-
-        cfg_trainer = config['trainer']
-        self.model = model
-        self.optimizer = optimizer
-        self.data_set = data_loader
-        self.transform = transform
-        self.score_threshold = cfg_trainer["score_threshold"]
-        self.epochs = cfg_trainer['epochs']
-        self.save_period = cfg_trainer['save_period']
-
-        # self.train_metrics = MetricTracker('loss', *[m.__name__ for m in self.metric_ftns], writer=self.writer)
-        # self.valid_metrics = MetricTracker('loss', *[m.__name__ for m in self.metric_ftns], writer=self.writer)
-
-    def train(self):
+    def _save_checkpoint(self, epoch, save_best=False):
         """
-        Training logic for an epoch
+        Saving checkpoints
 
-        :param epoch: Integer, current training epoch.
-        :return: A log that contains average loss and metric in this epoch.
+        :param epoch: current epoch number
+        :param log: logging information of the epoch
+        :param save_best: if True, rename the saved checkpoint to 'model_best.pth'
         """
-        self.loss_hist = Averager()
+        if self.config["save"] :
+            if save_best:
+                filename = str(self.checkpoint_dir / 'model_best-epoch{}.pth'.format(epoch))
+                torch.save(self.model.state_dict(), best_path)
+                self.logger.info("Saving current best: model_best.pth ...")
+            else:
+                filename = str(self.checkpoint_dir / 'checkpoint-epoch{}.pth'.format(epoch))
+                torch.save(self.model.state_dict(), filename)
+                self.logger.info("Saving checkpoint: {} ...".format(filename))
+            self.is_save_pth_filename = filename
     
-        
-        kfold = KFold(n_splits=5, shuffle=True, random_state=None) # Kfold
-        # stratified_kfold = StratifiedKFold(n_splits=5, shuffle=True, random_state=None) # Kfold
-        kfold_index = 0
-        def collate_fn(batch):
-            return tuple(zip(*batch))
-        self.data_set.set_transform(self.transform.transformations['train'])
-        self.data_loader = torch.utils.data.DataLoader(
-                            self.data_set,
-                            batch_size=32, 
-                            num_workers=4,
-                            shuffle=True,
-                            collate_fn=collate_fn)
-        target_count = 0
-        for epoch in range(self.epochs):
-            self.loss_hist.reset()
-
-            for images, targets, *_ in tqdm(self.data_loader):
-            # for images, targets, image_ids in tqdm(self.data_loader):
-                images = torch.stack(images) # bs, ch, w, h - 16, 3, 512, 512
-                images = images.to(self.device).float()
-                boxes = [target['boxes'].to(self.device).float() for target in targets]
-                labels = [target['labels'].to(self.device).float() for target in targets]
-                target = {"bbox": boxes, "cls": labels}
-
-                # calculate loss
-                loss, cls_loss, box_loss = self.model(images, target).values()
-                loss_value = loss.detach().item()
-                
-                self.loss_hist.send(loss_value)
-                
-                # backward
-                self.optimizer.zero_grad()
-                loss.backward()
-                # cls_loss.backward()
-                # box_loss.backward()
-                # grad clip
-                torch.nn.utils.clip_grad_norm_(self.model.parameters(), 35)
-                
-                self.optimizer.step()
-                if self.lr_scheduler is not None:
-                    self.lr_scheduler.step()
-            print(f"Epoch #{epoch+1} loss: {self.loss_hist.value}")
-            torch.save(self.model.state_dict(), f'epoch_{epoch+1}.pth')
-
-        # for epoch in range(self.epochs):
-        #     kfold_index = 0
-        #     self.model.train()
-        #     self.model.to(self.device)
-        #     for train_index, validation_index in kfold.split(self.data_set):
-        #     # for train_index, validation_index in stratified_kfold.split(self.data_set, labels):
-        #         kfold_index+=1
-        #         print(f'####### epochs :: {epoch}th, KFold :: {kfold_index}th')
-                
-        #         train_dataset = torch.utils.data.dataset.Subset(self.data_set, train_index)
-                
-        #         copied_dataset = copy.deepcopy(self.data_set)
-        #         valid_dataset = torch.utils.data.dataset.Subset(copied_dataset, validation_index)
-                
-        #         train_dataset.dataset.set_transform(self.transform.transformations['train'])
-        #         valid_dataset.dataset.set_transform(self.transform.transformations['val'])        
-        #         self.data_loader = torch.utils.data.DataLoader(
-        #                     train_dataset,
-        #                     batch_size= 32, 
-        #                     num_workers=4,
-        #                     shuffle=True,
-        #                     collate_fn=collate_fn)
-
-        #         self.valid_data_loader = torch.utils.data.DataLoader(
-        #                     valid_dataset,
-        #                     batch_size= 1,
-        #                     num_workers=1,
-        #                     shuffle=False,
-        #                     collate_fn=collate_fn) 
-
-        #         target_count = 0
-        #         self.loss_hist.reset()
-
-
-    def _valid_epoch(self, epoch):
-        # self.valid_metrics.reset()
-        
-
     def _progress(self, batch_idx):
         base = '[{}/{} ({:.0f}%)]'
-        if hasattr(self.data_loader, 'n_samples'):
-            current = batch_idx * self.data_loader.batch_size
-            total = self.data_loader.n_samples
-        else:
-            current = batch_idx
-            total = self.len_epoch
+        # if hasattr(self.len_data_set, 'n_samples'):
+        #     current = batch_idx * self.len_data_set
+        #     total = self.len_data_set.n_samples
+        # else:
+        current = batch_idx
+        total = self.len_epoch
         return base.format(current, total, 100.0 * current / total)
+        

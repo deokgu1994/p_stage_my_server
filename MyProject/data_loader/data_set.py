@@ -78,4 +78,5 @@ class CustomCOCODataset(Dataset):
         return image, target, image_id, image_info['file_name']
     
     def __len__(self) -> int:
+        # return 100
         return len(self.coco.getImgIds())
