@@ -1,5 +1,5 @@
 _base_ = [
-    'faster_rcnn_r152_fpn_dconv_c3-c5_1x_coco.py'
+    'faster_rcnn_r50_fpn_1x_coco.py'
 ]
 
 model = dict(
