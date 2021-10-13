@@ -51,7 +51,7 @@
         }
     },
     "trainer": {
-        "epochs": 5,
+        "epochs": 20,
         "save_dir": "logs/",
         "save_period": 5,
         "verbosity": 2,
