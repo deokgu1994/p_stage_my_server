@@ -19,19 +19,18 @@ from parse_config import ConfigParser
 from utils import prepare_device
 
 
-
-# fix random seeds for reproducibility
-SEED = 2021
-torch.manual_seed(SEED)
-torch.cuda.manual_seed(SEED)
-torch.cuda.manual_seed_all(SEED)  # if use multi-GPU
-torch.backends.cudnn.deterministic = True
-torch.backends.cudnn.benchmark = False
-np.random.seed(SEED)
-random.seed(SEED)
-
-
 def main(config):
+
+    # fix random seeds for reproducibility
+    SEED = config["seed"]
+    torch.manual_seed(SEED)
+    torch.cuda.manual_seed(SEED)
+    torch.cuda.manual_seed_all(SEED)  # if use multi-GPU
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    np.random.seed(SEED)
+    random.seed(SEED)
+    
     if config["save"] : logger = config.get_logger('train')
 
     device, device_ids = prepare_device(config['n_gpu'])
@@ -60,16 +59,16 @@ def main(config):
     optimizer = config.init_obj('optimizer', torch.optim, trainable_params)
     lr_scheduler = config.init_obj('lr_scheduler', torch.optim.lr_scheduler, optimizer)
     
-    if config["type"] == "classfication":
-        trainer = Trainer.Trainer(model, criterion, metrics, optimizer,
+    if config["type"] == "Classfication":
+        trainer = Trainer.Trainer_cls(model, criterion, metrics, optimizer,
                         config=config,
                         device=device,
                         data_loader=data_set,
                         valid_data_loader=valid_data_loader,
                         lr_scheduler=lr_scheduler)
 
-    elif config["type"] == "detection":
-        trainer = Trainer.Trainer_det(model, criterion, metrics, optimizer,
+    elif config["type"] == "Segmentation":
+        trainer = Trainer.Trainer_seg(model, criterion, metrics, optimizer,
                         config=config,
                         device=device,
                         transform = transform,

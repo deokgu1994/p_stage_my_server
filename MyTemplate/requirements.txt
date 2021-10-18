@@ -3,3 +3,9 @@ torchvision
 numpy
 tqdm
 tensorboard>=1.14
+
+skleran
+adamp
+adamw
+opencv-python
+pycocotools

@@ -1,7 +1,8 @@
 /* Object_detection  */
 {
-    "name": "Object_detection",
-    "type": "detection", /* classefication, detection*/
+    "name": "Semantic_Segmentation",
+    "type": "Segmentation", /* Classefication, Segmentation*/
+    "seed": 2109,
     "n_gpu": 1,
     "save": true,
     "batch_size": 8,
