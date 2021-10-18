@@ -10,10 +10,9 @@
     "score_threshold": 0.5,
     "fold_split": 5,
     "data_set":{
-        "type": "CustomCOCODataset",
+        "type": "CustomSegDataSet",
         "args": {
-            "annotation": "/opt/ml/detection/dataset/train.json",
-            "data_dir": "/opt/ml/detection/dataset"
+            "data_dir": "/opt/ml/segmentation/input/data/train_all.json"
         }
     },
     "Net": {

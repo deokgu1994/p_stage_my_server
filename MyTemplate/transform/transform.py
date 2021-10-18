@@ -34,8 +34,8 @@ class NO_resize_Base_C348TransForm(object):
                                                 transforms.ToTensor(),
                                                 transforms.Normalize(mean=self.mean, std=self.std),
                                             ])
-        if 'eavl' in need:
-            self.transformations['eavl'] = tta.Compose([
+        if 'eval' in need:
+            self.transformations['eval'] = tta.Compose([
                                                 tta.HorizontalFlip(),
                                                 # tta.Rotate90(angles=[0, 90]),
                                                 # tta.Scale(scales=[1, 2]),
@@ -53,7 +53,7 @@ class CustomTransForm(object):
         self.use_rand_aug = use_rand_aug
         self.get_transforms()
         
-    def get_transforms(self,need=('train', 'val', "eavl")):
+    def get_transforms(self, need=('train', 'val', "eavl")):
         self.transformations = {}
         if 'train' in need:
             self.transformations['train'] = albumentations.Compose([

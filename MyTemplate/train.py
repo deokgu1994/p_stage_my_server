@@ -14,7 +14,7 @@ import model.loss as module_loss
 import model.metric as module_metric
 import model.model as module_net
 import transform.transform as module_transform
-import trainer.trainer as Trainer
+import trainer.__init__ as Trainer
 from parse_config import ConfigParser
 from utils import prepare_device
 
@@ -38,6 +38,7 @@ def main(config):
 
     # setup data_loader instances
     data_set = config.init_obj('data_set', module_data_set)
+    sys.exit()
 
     # load model 
     model = config.init_obj('Net', module_net)

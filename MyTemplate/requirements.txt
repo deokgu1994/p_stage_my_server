@@ -3,6 +3,9 @@ torchvision
 numpy
 tqdm
 tensorboard>=1.14
+effdet
+map-boxes
+ttach
 
 skleran
 adamp
