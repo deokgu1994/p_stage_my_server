@@ -4,7 +4,7 @@
     "type": "Segmentation", /* Classefication, Segmentation*/
     "seed": 2109,
     "n_gpu": 1,
-    "save": true,
+    "save": false,
     "batch_size": 8,
     "num_workers": 4,
     "score_threshold": 0.5,
@@ -16,19 +16,17 @@
         }
     },
     "Net": {
-        "type": "custom_efficientdet",
+        "type": "SetSegmentationTorchvision",
         "args": {
-            "det_name": "tf_efficientdet_d7",
-            "num_classes": 10,
-            "image_size": [512, 512]
+            "model_name": "fcn_resnet101",
+            "num_classes": 11
         }
     },
     "transform":{
-        "type": "CustomTransForm",
+        "type": "CustomTransForm_seg",
         "args": {
             "mean": [0.548, 0.504, 0.479],
             "std": [0.237, 0.247, 0.246],
-            "resize": [512, 512]
         }
     },
     "optimizer": {

@@ -49,7 +49,6 @@ class CustomTransForm(object):
     def __init__(self, mean, std, resize, use_rand_aug = False):
         self.mean = mean
         self.std = std
-        self.x, self.y = resize # notuse
         self.use_rand_aug = use_rand_aug
         self.get_transforms()
         
@@ -57,7 +56,6 @@ class CustomTransForm(object):
         self.transformations = {}
         if 'train' in need:
             self.transformations['train'] = albumentations.Compose([
-                                                Resize(self.x, self.y),
                                                 RandomBrightnessContrast(brightness_limit=(-0.1, 0.1), contrast_limit=(-0.1, 0.1), p=0.5),
                                                 Normalize(mean=self.mean, std=self.std, max_pixel_value=255.0, p=1.0),
                                                 ToTensorV2(p=1.0),
@@ -66,7 +64,6 @@ class CustomTransForm(object):
             #     self.transformations["train"].transforms.insert(1, RandAugment())
         if 'val' in need:
             self.transformations['val'] = albumentations.Compose([
-                                                Resize(self.x, self.y),
                                                 Normalize(mean=self.mean, std=self.std, max_pixel_value=255.0, p=1.0),
                                                 ToTensorV2(p=1.0),
                                             ])  

@@ -38,12 +38,11 @@ def main(config):
 
     # setup data_loader instances
     data_set = config.init_obj('data_set', module_data_set)
-    sys.exit()
 
     # load model 
     model = config.init_obj('Net', module_net)
     # if config["save"] : logger.info(model)
-
+    print(model)
     # set trasform
     transform = config.init_obj("transform", module_transform)
     # prepare for (multi-device) GPU training
@@ -51,6 +50,7 @@ def main(config):
     if len(device_ids) > 1:
         model = torch.nn.DataParallel(model, device_ids=device_ids)
 
+    sys.exit()
     # get function handles of loss and metrics
     criterion = getattr(module_loss, config['loss'])
     metrics = [getattr(module_metric, met) for met in config['metrics']]
