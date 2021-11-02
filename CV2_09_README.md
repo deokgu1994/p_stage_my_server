@@ -77,7 +77,7 @@ ___
 ___
 ## 📂 Archive contents
 ```
-누군가... 
+TODO
 ```
 ___
 ## 🛒 Quickstart
