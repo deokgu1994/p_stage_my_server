@@ -1,7 +1,6 @@
 # 재활용 품목 분류를 위한 Sementic Segmentation in Bostcamp
 
 ## 💻 하나둘셋Net()
-<br>
 
 ### 😎 Members
 ___
